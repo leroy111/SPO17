@@ -1,0 +1,17 @@
+G = (VT, VN, P, S)
+
+P:
+
+S -> D1; B$
+D1 -> var D {,D} 
+D -> I {,I} : integer; 
+B -> begin P {;P} end
+P -> I=E | if E then P else P | While E do P | B
+E -> E1[=|<|>|!=] E1 | E1
+E1 -> T {[+|-]T} 
+T -> F{[*|/]F}
+F -> I | N | (E)
+I -> C | IC | IR
+N -> R | NR
+C -> a|b|...|z
+R -> 0|1|2|...|9
