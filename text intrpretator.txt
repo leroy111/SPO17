@@ -1,0 +1,802 @@
+Executer.cs
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace ConsoleApplication20
+{
+    class Executer
+    {
+        List<Lexem> Poliz;
+        public Executer(List<Lexem> Pol)
+        {
+            Poliz = Pol;
+        }
+        public void Execute()
+        {
+            Stack<int> stack = new Stack<int>();
+            Tables.Values = new List<int>(Tables.TID.Count());
+            for (int j = 0; j < Tables.TID.Count(); j++)
+            {
+                Tables.Values.Add(0);
+            }
+            for (int i = 0; i < Poliz.Count(); i++)
+            {
+                switch (Poliz[i].type)
+                {
+                    case type_of_lex.LEX_NUM:
+                        stack.Push(Poliz[i].number_of_lexem_in_table);
+                      //  Console.WriteLine("num");
+                        break;
+                    case type_of_lex.POLIZ_ADDRESS:
+                        stack.Push(Poliz[i].number_of_lexem_in_table);
+                      //  Console.WriteLine("&");
+                        break;
+                    case type_of_lex.POLIZ_LABEL:
+                        stack.Push(Poliz[i].number_of_lexem_in_table);
+                        break;
+                    case type_of_lex.LEX_TID:
+                        int f = Poliz[i].number_of_lexem_in_table;
+                        stack.Push(Tables.Values[f]);
+                        break;
+                    case type_of_lex.LEX_NOT_JUMP:
+                        int d = stack.Pop();
+                        if (d == 0)
+                            i = d - 1;
+                        break;
+                    case type_of_lex.LEX_Q:
+                        d = stack.Pop();
+                        Tables.Values[stack.Pop()] = d;
+                     //   Console.WriteLine("q");
+                        break;
+                    case type_of_lex.LEX_JUMP:
+                        i = stack.Pop() - 1;
+                        break;
+
+                    case type_of_lex.LEX_PLUS:
+                        stack.Push(stack.Pop() + stack.Pop());
+                        break;
+                    case type_of_lex.LEX_MINUS:
+                        stack.Push(stack.Pop() - stack.Pop());
+                        break;
+                    case type_of_lex.LEX_MLT:
+                        stack.Push(stack.Pop() * stack.Pop());
+                        break;
+                    case type_of_lex.LEX_SLASH:
+                        stack.Push(stack.Pop() / stack.Pop());
+                        break;
+                    case type_of_lex.LEX_EQ:
+                        if (stack.Pop() == stack.Pop())
+                            stack.Push(1);
+                        else
+                            stack.Push(0);
+                        break;
+                    case type_of_lex.LEX_LSS:
+                        int k = stack.Pop();
+                        if (stack.Pop() < k)
+                            stack.Push(1);
+                        else
+                            stack.Push(0);
+                        break;
+                    case type_of_lex.LEX_GRT:
+                        k = stack.Pop();
+                        if (stack.Pop() > k)
+                            stack.Push(1);
+                        else
+                            stack.Push(0);
+                        break;
+                    case type_of_lex.LEX_EQ_LSS:
+                        k = stack.Pop();
+                        if (stack.Pop() <= k)
+                            stack.Push(1);
+                        else
+                            stack.Push(0);
+                        break;
+                    case type_of_lex.LEX_EQ_GRT:
+                        k = stack.Pop();
+                        if (stack.Pop() >= k)
+                            stack.Push(1);
+                        else
+                            stack.Push(0);
+                        break;
+                }
+            }
+        
+        }
+    }
+}
+
+
+LexAnalyzer.cs
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace ConsoleApplication20
+{
+    enum State { H, Num, Ident, Neq, Delim, Ale }
+    class LexAnalyzer
+    {
+        State CS;
+        char c;
+        int d;
+        string new_lex;
+        string s;
+        int ind = -1;
+        char get_symbol()
+        {
+            ind++;
+            return (char)(s[ind]);
+        }
+        public LexAnalyzer(string t)
+        {
+            CS = State.H;
+            s = t;
+            c = get_symbol();
+        }
+        public Lexem Analyze()
+        {
+            CS = State.H;
+            while (true)
+            {
+                switch (CS)
+                {
+                    case State.H:
+                        if (c == ' ' || c == '\n' || c == '\t') //пробел, перенос, табуляция
+                            c = get_symbol();
+                        else if (c >= '0' && c <= '9')
+                        {
+                            d = c - '0';
+                            CS = State.Num;
+                            c = get_symbol();
+                        }
+                        else if (c == '$')
+                            return new ConsoleApplication20.Lexem(type_of_lex.LEX_FIN);
+                        else if (c >= 'a' && c <= 'z')
+                        {
+                            new_lex = "";
+                            new_lex += c;
+                            c = get_symbol();
+                            CS = State.Ident;
+                        }
+                        else if (c == '>' || c == '<' || c == '=')
+                        {
+                            new_lex = "";
+                            new_lex += c;
+                            c = get_symbol();
+                            CS = State.Ale;
+                        }
+                        else if (c == '!')
+                        {
+                            new_lex = "!";
+                            c = get_symbol();
+                            CS = State.Neq;
+                        }
+                        else
+                            CS = State.Delim;
+                        break;
+                    case State.Ident:
+                        if (c >= 'a' && c <= 'z' || c >= '0' && c <= '9')
+                        {
+                            new_lex += c;
+                            c = get_symbol();
+                        }
+                        else if (Tables.TW.Contains(new_lex))
+                        {
+                            return new Lexem(Tables.words[Tables.TW.IndexOf(new_lex)], Tables.TW.IndexOf(new_lex));
+                        }
+                        else if (Tables.TID.Contains(new_lex))
+                        {
+                            CS = State.H;
+                            return new Lexem(type_of_lex.LEX_TID, Tables.TID.IndexOf(new_lex));
+                        }
+                        else
+                        {
+                            CS = State.H;
+                            Tables.TID.Add(new_lex);
+                            int j = Tables.TID.Count() - 1;
+                            return new Lexem(type_of_lex.LEX_TID, j);
+                        }
+                        break;
+                    case State.Num:
+                        if (c >= '0' && c <= '9')
+                        {
+                            d = 10 * d + c - '0';
+                            c = get_symbol();
+                        }
+                        else
+                            return new Lexem(type_of_lex.LEX_NUM, d);
+                        break;
+                    case State.Ale:
+                        if (c == '=')
+                        {
+                            new_lex += c;
+                            CS = State.H;
+                            c = get_symbol();
+                            return new Lexem(Tables.dlmns[Tables.TD.IndexOf(new_lex)], Tables.TD.IndexOf(new_lex));
+                        }
+                        else
+                        {
+                            CS = State.H;
+                            c = get_symbol();
+                            return new Lexem(Tables.dlmns[Tables.TD.IndexOf(new_lex)], Tables.TD.IndexOf(new_lex));
+                        }
+                        break;
+                    case State.Neq:
+                        if (c == '=')
+                        {
+                            new_lex += c;
+                            CS = State.H;
+                            c = get_symbol();
+                            return new Lexem(Tables.dlmns[Tables.TD.IndexOf(new_lex)], Tables.TD.IndexOf(new_lex));
+                        }
+                        else
+                            throw new Exception("!");
+                        break;
+                    case State.Delim:
+                        new_lex = "";
+                        if (c != '\n')
+                        {
+                            new_lex += c;
+                            if (Tables.TD.Contains(new_lex))
+                            {
+                                c = get_symbol();
+                                return new Lexem(Tables.dlmns[Tables.TD.IndexOf(new_lex)], Tables.TD.IndexOf(new_lex));
+                            }
+                            else
+                            {
+                                Console.WriteLine(c);
+                                Console.WriteLine(new_lex);
+                                throw new Exception("Unknown lexem" + new_lex );
+                            }
+                        }
+                        else
+                            c = get_symbol();
+                        break;
+                }
+            }
+        }
+    }
+}
+
+
+Lexem.cs
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace ConsoleApplication20
+{
+    class Lexem
+    {
+        public type_of_lex type;
+        public int number_of_lexem_in_table;
+        public Lexem(type_of_lex t = type_of_lex.LEX_NULL, int v = 0)
+        {
+            type = t;
+            number_of_lexem_in_table = v;
+        }
+    }
+}
+
+Parser.cs
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace ConsoleApplication20
+{
+    class Parser
+    {
+        Lexem current_lexem;
+        List<Lexem> list_with_lexems;
+        Stack<Lexem> stack = new Stack<Lexem>();
+        public List<Lexem> Poliz = new List<Lexem>();
+        int count = 0;
+        public Parser(List<Lexem> lst)
+        {
+            list_with_lexems = lst;
+        }
+        public void get_lexem()
+        {
+            current_lexem = list_with_lexems[count];
+            count++;
+        }
+        public void Analyze()
+        {
+            Console.WriteLine("Poliz:");
+            get_lexem();
+            if (current_lexem.type != type_of_lex.LEX_VAR)
+                throw new Exception("Expected 'var'");
+            For_Var();
+            P();
+            for (int i = 0; i < Poliz.Count(); i++)
+            {
+                if (Poliz[i].type == type_of_lex.POLIZ_ADDRESS)
+                    Console.Write ("&" + Tables.TID[Poliz[i].number_of_lexem_in_table] + " ");
+                else if (Poliz[i].type == type_of_lex.LEX_TID)
+                    Console.Write(Tables.TID[Poliz[i].number_of_lexem_in_table] + " ");
+                else if (Poliz[i].type == type_of_lex.LEX_NUM)
+                    Console.Write(Poliz[i].number_of_lexem_in_table + " ");
+                else if (Poliz[i].type == type_of_lex.POLIZ_LABEL)
+                    Console.Write(Poliz[i].number_of_lexem_in_table + " ");
+                else
+                    Console.Write(Tables.TD[Poliz[i].number_of_lexem_in_table] + " ");
+            }
+            Console.WriteLine("oo eeeee///All ok!");
+        }
+        void P()
+        {
+            if (current_lexem.type != type_of_lex.LEX_BEGIN)
+                throw new Exception("Expected 'begin'");
+            get_lexem();
+            D1();
+            if (current_lexem.type != type_of_lex.LEX_END)
+                throw new Exception("Expected 'end'");
+        }
+        void D1()
+        {
+            if (current_lexem.type == type_of_lex.LEX_END)
+                return;
+            if (current_lexem.type == type_of_lex.LEX_IF)
+            {
+                For_if();
+                int count = Poliz.Count();
+                Poliz.Add(new Lexem());
+                Poliz.Add(new Lexem(Tables.dlmns[Tables.TD.IndexOf("!F")], Tables.TD.IndexOf("!F")));
+                if (current_lexem.type != type_of_lex.LEX_THEN)
+                    throw new Exception("Expected 'then'");
+                For_then();
+                int count_2 = Poliz.Count();
+                Poliz.Add(new Lexem());
+                Poliz.Add(new Lexem(Tables.dlmns[Tables.TD.IndexOf("!")], Tables.TD.IndexOf("!")));
+                Poliz[count] = new Lexem(type_of_lex.POLIZ_LABEL, count_2 + 3);
+                get_lexem();
+                if (current_lexem.type == type_of_lex.LEX_ELSE)
+                {
+                    For_else();
+                    get_lexem();
+                }
+                Poliz[count_2] = new Lexem(type_of_lex.POLIZ_LABEL, Poliz.Count() + 1);
+            }
+            else if (current_lexem.type == type_of_lex.LEX_WHILE)
+            {
+                int count = Poliz.Count();
+                For_if();
+                Poliz.Add(new Lexem());
+                int count_2 = Poliz.Count();
+                Poliz.Add(new Lexem(Tables.dlmns[Tables.TD.IndexOf("!F")], Tables.TD.IndexOf("!F")));
+                if (current_lexem.type != type_of_lex.LEX_DO)
+                    throw new Exception("Expected 'do'");
+                For_then();
+                Poliz.Add(new Lexem(type_of_lex.POLIZ_LABEL, count + 1));
+                Poliz.Add(new Lexem(Tables.dlmns[Tables.TD.IndexOf("!")], Tables.TD.IndexOf("!")));
+                Poliz[count_2] = new Lexem(type_of_lex.POLIZ_LABEL, Poliz.Count() + 1);
+                get_lexem();
+            }
+            else
+            {
+                For_Operation();
+                get_lexem();
+            }
+            D1();
+        }
+        void For_if()
+        {
+            get_lexem();
+            if (current_lexem.type != type_of_lex.LEX_TID)
+                throw new Exception("Expected identificator");
+            Poliz.Add(current_lexem);
+            if (current_lexem.type == type_of_lex.LEX_TID)
+            {
+                bool b = true;
+                for (int i = 0; i < Tables.Identificators.Count(); i++)
+                {
+                    if (Tables.Identificators[i].type == current_lexem.type &&
+                        Tables.TID[Tables.Identificators[i].number_of_lexem_in_table] == Tables.TID[current_lexem.number_of_lexem_in_table])
+                        b = false;
+                }
+                if (b)
+                    throw new Exception("Uninitialized variable used");
+            }
+            get_lexem();
+            if (current_lexem.type != type_of_lex.LEX_EQ && current_lexem.type != type_of_lex.LEX_NEQ &&
+                current_lexem.type != type_of_lex.LEX_EQ_GRT && current_lexem.type != type_of_lex.LEX_EQ_LSS &&
+                current_lexem.type != type_of_lex.LEX_GRT && current_lexem.type != type_of_lex.LEX_LSS)
+                throw new Exception("Expected operation");
+            stack.Push(current_lexem);
+            get_lexem();
+            Operation();
+            Poliz.Add(stack.Pop());
+        }
+        void For_then()
+        {
+            get_lexem();
+            if (current_lexem.type == type_of_lex.LEX_BEGIN)
+                P();
+            else
+                For_Operation();
+        }
+        void For_else()
+        {
+            get_lexem();
+            if (current_lexem.type == type_of_lex.LEX_BEGIN)
+                P();
+            else
+                For_Operation();
+        }
+        void For_reset()
+        {
+            if (current_lexem.type != type_of_lex.LEX_TID)
+                throw new Exception("Expected identificator");
+            for (int i = 0; i < Tables.Identificators.Count(); i++)
+            {
+                if (Tables.Identificators[i].type == current_lexem.type &&
+                    Tables.TID[Tables.Identificators[i].number_of_lexem_in_table] == Tables.TID[current_lexem.number_of_lexem_in_table])
+                    throw new Exception("Twice reset!");
+            }
+            Tables.Identificators.Add(current_lexem);
+            get_lexem();
+            while (current_lexem.type == type_of_lex.LEX_COLON)
+            {
+                get_lexem();
+                if (current_lexem.type != type_of_lex.LEX_TID)
+                    throw new Exception("Expected identificator");
+                for (int i = 0; i < Tables.Identificators.Count(); i++)
+                {
+                    if (Tables.TID[Tables.Identificators[i].number_of_lexem_in_table] == Tables.TID[current_lexem.number_of_lexem_in_table])
+                        throw new Exception("Twice reset!");
+                }
+                Tables.Identificators.Add(current_lexem);
+                get_lexem();
+            }
+            if (current_lexem.type != type_of_lex.LEX_SEM)
+                throw new Exception("Expected identificator");
+            get_lexem();
+            if (current_lexem.type != type_of_lex.LEX_INT)
+                throw new Exception("Expected identificator");
+            get_lexem();
+            if (current_lexem.type != type_of_lex.LEX_SEMICOLON)
+                throw new Exception("Expected ';'");
+        }
+        void For_Operation()
+        {
+            if (current_lexem.type != type_of_lex.LEX_TID)
+                return;
+            bool b = true;
+            for (int i = 0; i < Tables.Identificators.Count(); i++)
+            {
+                if (Tables.Identificators[i].type == current_lexem.type &&
+                    Tables.TID[Tables.Identificators[i].number_of_lexem_in_table] == Tables.TID[current_lexem.number_of_lexem_in_table])
+                    b = false;
+            }
+            if (b)
+                throw new Exception("Uninitialized variable used");
+            Poliz.Add(new Lexem(type_of_lex.POLIZ_ADDRESS, current_lexem.number_of_lexem_in_table));
+            get_lexem();
+            if (current_lexem.type != type_of_lex.LEX_Q)
+                throw new Exception("Expected operation");
+            stack.Push(current_lexem);
+            get_lexem();
+            Operation();
+            Poliz.Add(stack.Pop());
+            if (current_lexem.type != type_of_lex.LEX_SEMICOLON)
+                throw new Exception("Expected ';'");
+            Poliz.Add(current_lexem);
+        }
+        void Operand_2()
+        {
+            bool b = true;
+            get_lexem();
+            if (current_lexem.type == type_of_lex.LEX_LPAREN)
+            {
+                stack.Push(current_lexem);
+                get_lexem();
+                Operation();
+                if (current_lexem.type != type_of_lex.LEX_PPAREN)
+                    throw new Exception("Expected ')'");
+                Lexem l;
+                l = stack.Pop();
+                while (l.type != type_of_lex.LEX_LPAREN)
+                {
+                    Poliz.Add(l);
+                    l = stack.Pop();
+                }
+            }
+            else if (current_lexem.type != type_of_lex.LEX_TID && current_lexem.type != type_of_lex.LEX_NUM)
+                throw new Exception("Expected operator");
+            else
+                Poliz.Add(current_lexem);
+            if (current_lexem.type == type_of_lex.LEX_TID)
+            {
+                b = true;
+                for (int i = 0; i < Tables.Identificators.Count(); i++)
+                {
+                    if (Tables.Identificators[i].type == current_lexem.type &&
+                        Tables.TID[Tables.Identificators[i].number_of_lexem_in_table] == Tables.TID[current_lexem.number_of_lexem_in_table])
+                        b = false;
+                }
+                if (b)
+                    throw new Exception("Uninitialized variable used");
+            }
+            get_lexem();
+        }
+        void Operation()
+        {
+            bool b = true;
+            if (current_lexem.type != type_of_lex.LEX_TID && current_lexem.type != type_of_lex.LEX_NUM && current_lexem.type != type_of_lex.LEX_LPAREN)
+                throw new Exception("Expected operator");
+            if (current_lexem.type == type_of_lex.LEX_TID)
+            {
+                b = true;
+                for (int i = 0; i < Tables.Identificators.Count(); i++)
+                {
+                    if (Tables.Identificators[i].type == current_lexem.type &&
+                        Tables.TID[Tables.Identificators[i].number_of_lexem_in_table] == Tables.TID[current_lexem.number_of_lexem_in_table])
+                        b = false;
+                }
+                if (b)
+                    throw new Exception("Uninitialized variable used");
+            }
+            if (current_lexem.type == type_of_lex.LEX_LPAREN)
+            {
+                stack.Push(current_lexem);
+                get_lexem();
+                Operation();
+                if (current_lexem.type != type_of_lex.LEX_PPAREN)
+                    throw new Exception("Expected ')'");
+                Lexem l;
+                l = stack.Pop();
+                while (l.type != type_of_lex.LEX_LPAREN)
+                {
+                    Poliz.Add(l);
+                    l = stack.Pop();
+                }
+                // достать все из стека
+            }
+            else
+                Poliz.Add(current_lexem);
+            get_lexem();
+            while (current_lexem.type == type_of_lex.LEX_PLUS || current_lexem.type == type_of_lex.LEX_MINUS
+                || current_lexem.type == type_of_lex.LEX_MLT || current_lexem.type == type_of_lex.LEX_SLASH)
+            {
+                stack.Push(current_lexem);
+                Operand_2();
+                Poliz.Add(stack.Pop());
+            }
+            
+        } 
+        void For_Var()
+        {
+            get_lexem();
+            while (current_lexem.type != type_of_lex.LEX_BEGIN)
+            { 
+                For_reset();
+                get_lexem();
+            }
+        }
+    }
+}
+
+
+Program.cs
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace ConsoleApplication20
+{
+ 
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            if (!File.Exists("file.txt"))
+            {
+                Console.WriteLine("file not exists");
+                return;
+            }
+            string my_text = "";
+            string[] text = System.IO.File.ReadAllLines("file.txt");
+            for (int i = 0; i < text.Length; i++)
+            {
+                my_text = my_text + text[i] + " ";
+            }
+
+            Lexem l;
+            Tables t = new Tables();
+            List<Lexem> Token = new List<Lexem>();
+            LexAnalyzer Lexer = new LexAnalyzer(my_text);
+            Parser Parsic = new Parser(Token);
+            try
+            {
+                l = (Lexem)Lexer.Analyze();
+                while (l.type != type_of_lex.LEX_FIN)
+                {
+                    Token.Add(l);
+                    l = (Lexem)Lexer.Analyze();
+                }
+                int i = 0;
+                Console.ReadLine();
+                while (i < Token.Count())
+                {
+                    Console.WriteLine((Token[i].type).ToString());
+                    i++;
+                }
+                Console.ReadLine();
+                Parsic.Analyze();
+                Console.ReadLine();
+                Executer ex = new Executer(Parsic.Poliz);
+                ex.Execute();
+                Console.WriteLine("Interpretation:");
+                for (int j = 0; j < Tables.TID.Count(); j++)
+                {
+                    Console.Write(Tables.TID[j] + " = ");
+                    Console.WriteLine(Tables.Values[j]);
+                }
+                Console.ReadLine();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message.ToString());
+                Console.ReadLine();
+                Console.ReadLine();
+            }
+        }
+    }
+}
+
+Tables.cs
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace ConsoleApplication20
+{
+    enum type_of_lex
+    {
+        LEX_NULL,
+        LEX_BEGIN,
+        LEX_END,
+        LEX_IF,
+        LEX_ELSE,
+        LEX_WHILE,
+        LEX_THEN,
+        LEX_TRUE,
+        LEX_FOR,
+        LEX_INT,
+        LEX_FALSE,
+
+        LEX_SEMICOLON,//;
+        LEX_COLON, //TD.Add(",");2
+        LEX_Q, //TD.Add("=");3
+        LEX_EQ,//TD.Add("==");4
+        LEX_NEQ,//TD.Add("!=");5
+        LEX_LSS,//TD.Add("<");6
+        LEX_GRT,//TD.Add(">");7
+        LEX_EQ_LSS,//TD.Add("<=");//8
+        LEX_EQ_GRT,//TD.Add(">=");//9
+        LEX_PLUS,//TD.Add("+");//10
+        LEX_MINUS,//TD.Add("-");//11
+        LEX_MLT,//TD.Add("*");//12
+        LEX_SLASH,//TD.Add("/");//13
+        LEX_LPAREN,//TD.Add("(");//14
+        LEX_PPAREN,//TD.Add(")");//15
+        LEX_SEM,
+        LEX_DO,
+        LEX_JUMP,
+        LEX_NOT_JUMP,
+
+        LEX_TID,
+        LEX_NUM,
+        LEX_FIN,
+        LEX_VAR,
+        POLIZ_ADDRESS,
+        POLIZ_LABEL,
+    };
+
+
+    class Tables
+    {
+        public static List<string> TW = new List<string>();//служебные слова
+        public static List<string> TD = new List<string>();//ограничителя языка
+        public static List<string> TID = new List<string>();//наши личные идентификаторы
+        public static List<int> Values = new List<int>();// значения переменных
+        public static type_of_lex[] words =
+        {
+            type_of_lex.LEX_NULL,
+            type_of_lex.LEX_BEGIN,
+            type_of_lex.LEX_END,
+            type_of_lex.LEX_IF,
+            type_of_lex.LEX_ELSE,
+            type_of_lex.LEX_WHILE,
+            type_of_lex.LEX_THEN,
+            type_of_lex.LEX_TRUE,
+            type_of_lex.LEX_FOR,
+            type_of_lex.LEX_INT,
+            type_of_lex.LEX_FALSE,
+            type_of_lex.LEX_FIN,
+            type_of_lex.LEX_VAR,
+            type_of_lex.LEX_DO,
+            type_of_lex.LEX_NUM
+        };
+        public static type_of_lex[] dlmns =
+        {
+            type_of_lex.LEX_SEMICOLON,//;
+            type_of_lex.LEX_COLON, //TD.Add(",");2
+            type_of_lex.LEX_Q, //TD.Add("=");3
+            type_of_lex.LEX_EQ,//TD.Add("==");4
+            type_of_lex.LEX_NEQ,//TD.Add("!=");5
+            type_of_lex.LEX_LSS,//TD.Add("<");6
+            type_of_lex.LEX_GRT,//TD.Add(">");7
+            type_of_lex.LEX_EQ_LSS,//TD.Add("<=");//8
+            type_of_lex.LEX_EQ_GRT,//TD.Add(">=");//9
+            type_of_lex.LEX_PLUS,//TD.Add("+");//10
+            type_of_lex.LEX_MINUS,//TD.Add("-");//11
+            type_of_lex.LEX_MLT,//TD.Add("*");//12
+            type_of_lex.LEX_SLASH,//TD.Add("/");//13
+            type_of_lex.LEX_LPAREN,//TD.Add("(");//14
+            type_of_lex.LEX_PPAREN,//TD.Add(")");//15
+            type_of_lex.LEX_SEM,
+            type_of_lex.LEX_NOT_JUMP,
+            type_of_lex.LEX_JUMP
+        };
+
+        public Tables()
+        {
+            TW.Add("");
+            TW.Add("begin");//1
+            TW.Add("end");//2
+            TW.Add("if");//3
+            TW.Add("else");//4
+            TW.Add("while");//5
+            TW.Add("then");//6
+            TW.Add("true");//7
+            TW.Add("for");//8
+            TW.Add("integer");//9
+            TW.Add("false");//10
+            TW.Add("$");//11
+            TW.Add("var");//12
+            TW.Add("do");//13
+
+            TD.Add(";");//1
+            TD.Add(",");//2
+            TD.Add("=");//3
+            TD.Add("==");//4
+            TD.Add("!=");//5
+            TD.Add("<");//6
+            TD.Add(">");//7
+            TD.Add("<=");//8
+            TD.Add(">=");//9
+            TD.Add("+");//10
+            TD.Add("-");//11
+            TD.Add("*");//12
+            TD.Add("/");//13
+            TD.Add("(");//14
+            TD.Add(")");//15
+            TD.Add(":");
+            TD.Add("!F");
+            TD.Add("!");
+        }
+        public static List<Lexem> Identificators = new List<Lexem>();
+    }
+}
